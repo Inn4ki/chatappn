@@ -1,58 +1,109 @@
 var uuid = require("node-uuid");
 var _ = require("lodash");
 var express = require("express");
-var rooms = require("./../data/rooms.json");
+var MongoClient = require("mongodb").MongoClient;
+var ObjectID = require("mongodb").ObjectID;
 
 var router = express.Router();
 module.exports = router;
 
-router.get('/', function (req, res) {
-  res.render("rooms/list", {
-    title: "Admin Rooms",
-    rooms: rooms
-  });
+var url = "mongodb://localhost:27017/chat";
+
+router.get('/', function (req, res, next) {
+
+    MongoClient.connect(url, function (error, db) {
+        if(error){ return next(error);}
+
+        db.collection("rooms").find().toArray(function (error, rooms) {
+            if(error){ return next(error);}
+
+            res.render("rooms/list", {
+                title: "Admin Rooms",
+                rooms: rooms
+            });
+
+            db.close();
+        });
+    });
+
 });
 
 router.route('/add')
-  .get(function (req, res) {
-    res.render("rooms/add");
-  })
-  .post(function (req, res) {
-    var room = {
-      name: req.body.name,
-      id: uuid.v4()
-    };
+    .get(function (req, res) {
+        res.render("rooms/add");
+    })
+    .post(function (req, res, next) {
+        var room = {
+            name: req.body.name
+        };
 
-    rooms.push(room);
+        MongoClient.connect(url, function (error, db) {
+            if(error){ return next(error);}
 
-    res.redirect(req.baseUrl);
-  });
+            db.collection("rooms").insertOne(room, function(error, result){
+                if(error){ return next(error);}
+
+                res.redirect(req.baseUrl);
+            })
+        });
+
+    });
 
 router.route('/edit/:id')
-  .all(function (req, res, next) {
+    .all(function (req, res, next) {
+        var roomId = req.params.id;
+
+        MongoClient.connect(url, function (error, db) {
+            if(error){ return next(error);}
+
+            var filter = { _id: new ObjectID(roomId) };
+            db.collection("rooms").find(filter).next(function (error, room) {
+                if(error){ return next(error);}
+
+                if (!room) {
+                    res.sendStatus(404);
+                    return;
+                }
+                res.locals.room = room;
+                next();
+
+                db.close();
+            });
+        });
+
+    })
+    .get(function (req, res) {
+        res.render("rooms/edit");
+    })
+    .post(function (req, res, next) {
+        var roomId = req.params.id;
+
+        MongoClient.connect(url, function (error, db) {
+            if(error){ return next(error);}
+
+            var filter = { _id: new ObjectID(roomId) };
+            var newRoom = {
+                name: req.body.name
+            };
+            db.collection("rooms").replaceOne(filter, newRoom, function(error, result){
+                if(error){ return next(error);}
+
+                res.redirect(req.baseUrl);
+            });
+        });
+    });
+
+router.get('/delete/:id', function (req, res, next) {
     var roomId = req.params.id;
 
-    var room = _.find(rooms, r => r.id === roomId);
-    if (!room) {
-      res.sendStatus(404);
-      return;
-    }
-    res.locals.room = room;
-    next()
-  })
-  .get(function (req, res) {
-    res.render("rooms/edit");
-  })
-  .post(function (req, res) {
-    res.locals.room.name = req.body.name;
+    MongoClient.connect(url, function (error, db) {
+        if(error){ return next(error);}
 
-    res.redirect(req.baseUrl);
-  });
+        var filter = { _id: new ObjectID(roomId) };
+        db.collection("rooms").deleteOne(filter , function(error, result){
+            if(error){ return next(error);}
 
-router.get('/delete/:id', function (req, res) {
-  var roomId = req.params.id;
-
-  rooms = rooms.filter(r => r.id !== roomId);
-
-  res.redirect(req.baseUrl);
+            res.redirect(req.baseUrl);
+        })
+    });
 });
