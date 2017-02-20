@@ -1,33 +1,36 @@
-var uuid = require("node-uuid");
-var _ = require("lodash");
 var express = require("express");
-var users = require("./../data/users.json");
 var os = require('os');
+var chatDB = require("../data/chatDB");
 
 var router = express.Router();
 module.exports = router;
 
-router.get('/', function (req, res) {
-  res.render("users/list", {
-    title: "Admin Users",
-    users: users
-  });
+
+router.get('/', function (req, res, next) {
+
+  chatDB.User.find().exec()
+    .then(function (users) {
+      res.render("users/list", {
+        title: "Admin Users",
+        users: users
+      });
+    })
+    .catch(next);
+
 });
 
 router.route('/add')
   .get(function (req, res) {
     res.render("users/add");
   })
-  .post(function (req, res) {
-    var user = {
-      id: uuid.v4()
-    };
+  .post(function (req, res, next) {
+    var user = new chatDB.User();
 
     userFromRequestBody(user, req);
 
-    users.push(user);
-
-    res.redirect(req.baseUrl);
+    user.save()
+      .then(() => res.redirect(req.baseUrl))
+      .catch(next);
   });
 
 function userFromRequestBody(user, request) {
@@ -49,30 +52,46 @@ router.route('/edit/:id')
   .all(function (req, res, next) {
     var userId = req.params.id;
 
-    var user = _.find(users, r => r.id === userId);
-    if (!user) {
-      res.sendStatus(404);
-      return;
-    }
-    res.locals.user = user;
-    res.locals.userHasRole = function (role) {
-      return (user.roles || []).indexOf(role) > -1
-    };
-    next()
+    chatDB.User.findById(userId).exec()
+      .then(user => {
+
+        if (!user) {
+          res.sendStatus(404);
+          return;
+        }
+        res.locals.user = user;
+        res.locals.userHasRole = function (role) {
+          return (user.roles || []).indexOf(role) > -1
+        };
+        next()
+
+      })
+      .catch(next);
   })
   .get(function (req, res) {
     res.render("users/edit");
   })
-  .post(function (req, res) {
+  .post(function (req, res, next) {
     userFromRequestBody(res.locals.user, req);
 
-    res.redirect(req.baseUrl);
+    res.locals.user.save()
+      .then(() => res.redirect(req.baseUrl))
+      .catch(error =>{
+        if(error.name === "ValidationError"){
+          res.locals.errors = error.errors;
+          res.render("users/edit");
+          return;
+        }
+
+        next(error);
+      });
+
   });
 
-router.get('/delete/:id', function (req, res) {
+router.get('/delete/:id', function (req, res, next) {
   var userId = req.params.id;
 
-  users = users.filter(r => r.id !== userId);
-
-  res.redirect(req.baseUrl);
+  chatDB.User.findByIdAndRemove(userId)
+    .then(() => res.redirect(req.baseUrl))
+    .catch(next);
 });

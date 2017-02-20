@@ -1,15 +1,29 @@
 var express = require("express");
-var rooms = require("./data/rooms.json");
 var messages = require("./data/messages.json");
 var _ = require("lodash");
 var uuid = require("node-uuid");
 var users = require("./data/users.json");
+var chatDB = require("./data/chatDB");
 
 var router = express.Router();
 module.exports = router;
 
-router.get("/rooms", function (req, res) {
-  res.json(rooms);
+router.get("/rooms", function (req, res, next) {
+
+  chatDB.connect
+    .then(db => db.collection("rooms").find().toArray())
+    .then(rooms => res.json(rooms))
+    .catch(next);
+
+});
+
+router.get("/users", function (req, res, next) {
+
+  chatDB.connect
+    .then(db => db.collection("users").find().toArray())
+    .then(users => res.json(users))
+    .catch(next);
+
 });
 
 router.route("/rooms/:roomId/messages")
