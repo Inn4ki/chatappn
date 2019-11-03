@@ -11,7 +11,7 @@
     "jquery": "^2.2.1",
     "lodash": "^4.5.1",
     "mongodb": "latest",
-    "mongoose": "^4.4.10",
+    "mongoose": "^5.7.7",
     "node-uuid": "^1.4.7"
   }
 }
